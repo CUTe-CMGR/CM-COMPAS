@@ -123,6 +123,26 @@ details.wq .body { padding-top: 8px; }
 textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2); border-radius: 6px; background: var(--card); padding: 8px; font-family: var(--mono); font-size: 13px; }
 .foot { margin-top: 30px; font-size: 13px; color: var(--ink-2); }
 .err { border-color: var(--bad); }
+/* essay */
+textarea.essay { width: 100%; min-height: 200px; border: 1.5px solid var(--ink-2); border-radius: 6px; background: var(--card); padding: 10px 12px; line-height: 1.75; resize: vertical; font-family: var(--sans); font-size: 16px; }
+textarea.essay[readonly] { background: var(--paper); }
+table.rub td.c, table.rub th.c { text-align: center; white-space: nowrap; }
+select.sc { width: auto; min-width: 64px; padding: 4px 6px; }
+.det-ok { color: var(--ok); font-weight: 700; } .det-part { color: var(--blue); font-weight: 700; } .det-miss { color: var(--ink-2); }
+.eres { margin-top: 14px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.hint { font-size: 12.5px; color: var(--ink-2); display: block; }
+.hist { margin: 10px 0 0; padding-left: 20px; font-size: 14.5px; }
+/* 意見與建議 */
+.coach { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper); }
+.coach h3 { font-size: 16px; margin: 0 0 6px; }
+.coach .head { margin: 0 0 8px; font-weight: 700; }
+.coach ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.coach li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: baseline; font-size: 15px; }
+.coach .tg { font-size: 12.5px; font-weight: 700; border-radius: 999px; padding: 0 9px; white-space: nowrap; border: 1px solid currentColor; }
+.coach .good .tg { color: var(--ok); } .coach .warn .tg { color: var(--bad); } .coach .tip .tg { color: var(--blue); }
+.coach .acts { margin-top: 12px; }
+.coach .acts .btn { padding: 5px 14px; font-size: 14px; }
+.coach .src { margin: 10px 0 0; }
 @media print {
   .top, .btn, .row, .noprint { display: none !important; }
   body { background: #fff; color: #000; }
@@ -166,7 +186,7 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
         <label class="f">應試科目<select id="selSubject"></select></label>
       </div>
     </div>
-    <div class="panel">
+    <div class="panel" id="mcqPanel">
       <h2>練習模式</h2>
       <div class="modes" id="modes">
         <label><input type="radio" name="mode" value="random" checked><span>隨機出題<small>從符合條件的題目中亂數抽題，同一輪不重複</small></span></label>
@@ -186,9 +206,27 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
         <button type="button" class="btn" id="btnBackCover">回封面</button>
       </div>
     </div>
+    <div class="panel err" id="essayErr" hidden>
+      <h2>申論題功能未能載入</h2>
+      <p id="essayErrMsg" style="margin:0 0 8px"></p>
+      <p class="note" style="margin:0">選擇題不受影響。部署到 GitHub Pages 時請確認這幾個檔案都已上傳：<code>index.html</code>、<code>core.js</code>、<code>data/essays.json</code>；上傳後等 1～2 分鐘，並用 Ctrl+F5（Mac 為 ⌘+Shift+R）強制重新整理。</p>
+    </div>
+    <div class="panel" id="essayPanel" hidden>
+      <h2>申論題練習</h2>
+      <p class="note" style="margin-top:0">考選部不公布申論題標準答案。本系統提供編者整理的參考答案與評分細目：先自己作答，送出後系統先做關鍵字初判，再由你對照參考答案確認每個得分點。正式考試每題約 30 分鐘。</p>
+      <label class="f">選擇題目<select id="selEssay"></select></label>
+      <div class="row gap-lg">
+        <button type="button" class="btn primary" id="btnEssayStart">開始（或接續）申論題</button>
+      </div>
+    </div>
+    <div class="panel" id="advicePanel">
+      <h2>學習建議</h2>
+      <div id="adviceBody"></div>
+    </div>
     <div class="panel">
       <h2>我的紀錄</h2>
       <div class="stat" id="allStat"></div>
+      <div id="essayHist"></div>
       <div class="row gap-lg">
         <button type="button" class="btn" id="btnExport">備份紀錄（下載檔案）</button>
         <label class="btn" style="cursor:pointer">匯入備份<input type="file" id="fileImport" accept="application/json,.json" hidden></label>
@@ -216,6 +254,7 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
         <div class="note" id="fbAnswer"></div>
         <div class="exp"><p id="fbExp"></p></div>
         <p class="note" id="fbNote" hidden></p>
+        <div class="coach" id="fbCoach" aria-label="針對你這題作答的意見"></div>
         <div class="row gap-lg">
           <button type="button" class="btn primary" id="btnNext">下一題</button>
           <button type="button" class="btn" id="btnEnd">結束並檢視紀錄</button>
@@ -224,11 +263,37 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     </div>
   </section>
 
+  <section id="vEssay" hidden>
+    <div class="phead">
+      <span class="prog" id="eTitle"></span>
+      <button type="button" class="btn" id="btnEssayBack">回設定（草稿會保留）</button>
+    </div>
+    <div class="panel">
+      <div class="chips" id="eChips"></div>
+      <p class="qtext" id="eQ" style="margin-bottom:0"></p>
+      <p class="note" id="eFig" hidden style="margin:10px 0 0">本題要求繪圖。本系統無法繪圖，請用文字描述：標明橫軸與縱軸，說明各條曲線的名稱與斜率、交點的位置，以及哪一塊面積是消費者剩餘、生產者剩餘或無謂損失。評分是比對文字，不是看圖。你仍應在紙上實際畫一次圖練習。</p>
+    </div>
+    <div id="eParts"></div>
+    <div class="panel noprint">
+      <div class="score"><span class="num" id="eTotal">0</span><span class="note" id="eOf"></span></div>
+      <div class="row gap-lg">
+        <button type="button" class="btn primary" id="btnEssaySave" disabled>儲存本題成績並結束</button>
+        <button type="button" class="btn" id="btnEssayDrop">清除本題草稿</button>
+      </div>
+      <div class="coach" id="eFb" hidden></div>
+      <p class="note" id="eMsg" style="margin-bottom:0">尚未評分的小題以 0 分計。成績只存在你的瀏覽器。</p>
+    </div>
+  </section>
+
   <section id="vSummary" hidden>
     <h1>本次練習紀錄</h1>
     <div class="panel">
       <div class="score"><span class="num" id="sNum">0</span><span class="note" id="sOf"></span></div>
       <div class="stat" id="sStat" style="margin-top:8px"></div>
+    </div>
+    <div class="panel" id="coachPanel">
+      <h2>意見與建議</h2>
+      <div id="coachBody"></div>
     </div>
     <div class="panel" id="weakPanel">
       <h2>各考點答對率</h2>
@@ -253,23 +318,60 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
   <p class="foot">題目來源：考選部考畢試題查詢平臺。詳解為教學用途整理，非官方答案；法規與制度請以現行規定為準。若發現與考選部公告不符之處，請回報系統維護者。</p>
 </div></main>
 
-<script src="core.js"></script>
+<script src="core.js?v=feedback2"></script>
 <script>
 (function () {
   "use strict";
   var C = window.MoexCore;
   var LS = "cute-mgmt-moex-v1";
   var LET = ["A", "B", "C", "D", "E", "F", "G", "H"];
-  var BANK = null, BYID = {};
-  var S = { records: [], wrong: {}, session: null };
-  var view = null, chosen = null, tickId = null, left = 0, armed = {};
+  var BANK = null, BYID = {}, ESSAYS = [], EBYID = {}, ESSAY_ERR = "", curEssay = null, saveTimer = null;
+  var S = { records: [], wrong: {}, session: null, essay: { drafts: {}, attempts: [] } };
+  var view = null, qStart = 0, chosen = null, tickId = null, left = 0, armed = {};
 
   function $(id) { return document.getElementById(id); }
   function esc(t) { var d = document.createElement("div"); d.textContent = t; return d.innerHTML; }
-  function load() { try { var s = JSON.parse(localStorage.getItem(LS)); if (s && typeof s === "object") { S.records = Array.isArray(s.records) ? s.records : []; S.wrong = s.wrong && typeof s.wrong === "object" ? s.wrong : {}; S.session = s.session || null; } } catch (e) {} }
+  function load() { try { var s = JSON.parse(localStorage.getItem(LS)); if (s && typeof s === "object") { S.records = Array.isArray(s.records) ? s.records : []; S.wrong = s.wrong && typeof s.wrong === "object" ? s.wrong : {}; S.session = s.session || null; S.essay = s.essay && typeof s.essay === "object" ? s.essay : {}; } } catch (e) {} essayState(); }
   function save() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} }
 
-  var VIEWS = ["vLoading", "vError", "vCover", "vSetup", "vPractice", "vSummary"];
+  var KIND = { good: "做得好", warn: "要注意", tip: "建議" };
+  /** 把回饋物件畫進容器。fb: {headline, points:[{kind,text}], actions:[...]}；lines 版只傳陣列。 */
+  function renderCoach(el, fb, opt) {
+    opt = opt || {};
+    var pts = Array.isArray(fb) ? fb : fb.points, h = "";
+    if (!Array.isArray(fb) && fb.headline) h += '<p class="head">' + esc(fb.headline) + "</p>";
+    h += "<ul>" + pts.map(function (p) { return '<li class="' + p.kind + '"><span class="tg">' + KIND[p.kind] + "</span><span>" + esc(p.text) + "</span></li>"; }).join("") + "</ul>";
+    if (!Array.isArray(fb) && fb.actions && fb.actions.length && !opt.noActions) {
+      h += '<div class="row acts noprint">' + fb.actions.map(function (a, i) { return '<button type="button" class="btn" data-act="' + i + '">' + esc(a.label) + "</button>"; }).join("") + "</div>";
+    }
+    if (opt.src) h += '<p class="note src">' + esc(opt.src) + "</p>";
+    el.innerHTML = h;
+    if (fb.actions) el.querySelectorAll("[data-act]").forEach(function (b) {
+      b.addEventListener("click", function () { var a = fb.actions[+b.dataset.act]; gotoPractice(opt.subject, a.type, a.tag); });
+    });
+  }
+  var COACH_NOTE = "以上意見由系統依你的作答紀錄以規則自動產生，不是老師的批改；樣本越少越不準，僅供參考。";
+  function gotoPractice(subject, mode, tag) {
+    var q = BANK.questions.filter(function (x) { return x.subject === subject; })[0];
+    if (!q) return;
+    S.session = null; save();
+    $("selExam").value = q.exam; refreshSubjects(); $("selSubject").value = subject; refreshFilters();
+    document.querySelector('input[name="mode"][value="' + mode + '"]').checked = true;
+    $("fTag").hidden = mode !== "tag";
+    if (mode === "tag") $("selTag").value = tag;
+    updatePool(); show("vSetup");
+  }
+  function renderAdvice() {
+    var sub = $("selSubject").value, el = $("adviceBody");
+    var a = C.feedbackOverall(S.records, BYID, S.wrong, sub);
+    if (!a.enough) { el.innerHTML = '<p class="note" style="margin:0">「' + esc(sub) + "」目前累計作答 " + a.n + " 題。累計滿 5 題後，這裡會依你的作答紀錄分析弱項考點、進步趨勢與建議的練習方式。</p>"; return; }
+    var box = document.createElement("div"); box.className = "coach"; box.style.marginTop = "0";
+    el.innerHTML = '<p class="note" style="margin:0 0 4px">依你在「' + esc(sub) + "」的累計 " + a.n + " 題作答（答對率 " + Math.round(a.accuracy * 100) + "%）：</p>";
+    el.appendChild(box);
+    renderCoach(box, a, { src: COACH_NOTE, subject: sub });
+  }
+
+  var VIEWS = ["vLoading", "vError", "vCover", "vSetup", "vPractice", "vEssay", "vSummary"];
   function show(v) {
     view = v;
     VIEWS.forEach(function (id) { $(id).hidden = id !== v; });
@@ -295,8 +397,17 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
       var errs = C.validateBank(b);
       if (errs.length) throw new Error("題庫格式有誤：" + errs.slice(0, 5).join("；") + (errs.length > 5 ? "…（共 " + errs.length + " 項）" : ""));
       BANK = b; b.questions.forEach(function (q) { BYID[q.id] = q; });
-      initSetup(); renderCoverStat(); show("vCover");
+      return loadEssays().then(function () { initSetup(); renderCoverStat(); show("vCover"); });
     }).catch(function (e) { $("errMsg").textContent = String(e.message || e); show("vError"); });
+  }
+
+  function loadEssays() {
+    return fetchJson("data/essays.json").then(function (e) {
+      if (typeof C.validateEssays !== "function") throw new Error("core.js 不是新版（缺少申論題函式）。請確認已上傳新版 core.js，並強制重新整理。");
+      var errs = C.validateEssays(e);
+      if (errs.length) throw new Error("申論題資料格式有誤：" + errs.slice(0, 3).join("；"));
+      ESSAYS = e.essays; EBYID = {}; ESSAYS.forEach(function (q) { EBYID[q.id] = q; });
+    }).catch(function (err) { ESSAYS = []; EBYID = {}; ESSAY_ERR = /HTTP 404/.test(String(err.message || err)) ? "找不到 data/essays.json（HTTP 404）。請確認 data 資料夾內已上傳 essays.json。" : String(err.message || err); if (window.console) console.warn(ESSAY_ERR); });
   }
 
   /* ---------- 封面與統計 ---------- */
@@ -307,7 +418,7 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
   }
   function statHtml() {
     var t = totals();
-    return "<span>題庫 <b>" + BANK.questions.length + "</b> 題</span><span>累計作答 <b>" + t.n + "</b> 題</span><span>答對率 <b>" + (t.n ? t.rate + "%" : "—") + "</b></span><span>錯題本 <b>" + t.wrongN + "</b> 題</span>";
+    return "<span>題庫 <b>" + BANK.questions.length + "</b> 題</span><span>累計作答 <b>" + t.n + "</b> 題</span><span>答對率 <b>" + (t.n ? t.rate + "%" : "—") + "</b></span><span>錯題本 <b>" + t.wrongN + "</b> 題</span>" + (ESSAYS.length ? "<span>申論題 <b>" + ESSAYS.length + "</b> 題</span>" : "");
   }
   function renderCoverStat() { $("coverStat").innerHTML = statHtml(); }
 
@@ -321,13 +432,14 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     return { subject: $("selSubject").value, year: $("selYear").value, tag: m === "tag" ? $("selTag").value : "", mode: m === "wrong" ? "wrong" : "random", wrongMap: S.wrong };
   }
   function initSetup() {
-    var exams = uniq(BANK.questions.map(function (q) { return q.exam; }));
+    var exams = uniq(BANK.questions.map(function (q) { return q.exam; }).concat(ESSAYS.map(function (e) { return e.exam; })));
     fill($("selExam"), exams.map(function (e) { return [e, e]; }));
     refreshSubjects();
   }
   function refreshSubjects() {
     var ex = $("selExam").value;
-    var subs = uniq(BANK.questions.filter(function (q) { return q.exam === ex; }).map(function (q) { return q.subject; }));
+    var subs = uniq(BANK.questions.filter(function (q) { return q.exam === ex; }).map(function (q) { return q.subject; })
+      .concat(ESSAYS.filter(function (e) { return e.exam === ex; }).map(function (e) { return e.subject; })));
     fill($("selSubject"), subs.map(function (s) { return [s, s]; }));
     refreshFilters();
   }
@@ -341,7 +453,9 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     fill($("selTag"), tags.map(function (t) { return [t, t]; }));
     if (years.map(String).indexOf(keepY) >= 0) $("selYear").value = keepY;
     if (tags.indexOf(keepT) >= 0) $("selTag").value = keepT;
-    $("setupLead").textContent = "目前題庫：" + $("selExam").value + "　" + sub + "，共 " + qs.length + " 題。";
+    var en = ESSAYS.filter(function (e) { return e.exam === $("selExam").value && e.subject === sub; }).length;
+    $("setupLead").textContent = "目前題庫：" + $("selExam").value + "　" + sub + "，" + (qs.length ? "選擇題 " + qs.length + " 題" : "本科目目前只有申論題") + (en ? (qs.length ? "，" : "：") + "申論題 " + en + " 題" : "") + "。";
+    $("mcqPanel").hidden = qs.length === 0; $("advicePanel").hidden = qs.length === 0;
     $("fTag").hidden = curMode() !== "tag";
     updatePool();
   }
@@ -350,6 +464,7 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     $("poolCount").textContent = pool.length;
     $("btnStart").disabled = pool.length === 0;
     $("allStat").innerHTML = statHtml();
+    refreshEssayPanel(); renderAdvice();
     var s = S.session;
     $("btnResume").hidden = !(s && !s.finished && s.queue.every(function (id) { return BYID[id]; }) && s.idx < s.queue.length);
   }
@@ -388,6 +503,7 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     });
     $("btnSubmit").disabled = true;
     $("pActions").hidden = false; $("pFeedback").hidden = true;
+    qStart = Date.now();
     startTimer(s.timed);
   }
   function startTimer(sec) {
@@ -414,8 +530,14 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     var q = BYID[s.queue[s.idx]];
     var letter = chosen == null ? null : LET[chosen];
     var g = C.grade(q, letter);
-    s.results[q.id] = { chosen: letter, status: g.status, pts: g.pts, gift: g.gift };
-    S.records.push({ id: q.id, ts: Date.now(), chosen: letter, status: g.status });
+    var sec = auto && s.timed ? s.timed : Math.max(0, Math.round((Date.now() - qStart) / 1000));
+    var pw = S.wrong[q.id], prev = pw ? { bad: pw.bad || 0, last: pw.last } : null;
+    var tagBefore = C.groupStats(S.records, BYID, function (x) { return x.tags || []; });
+    var res = { chosen: letter, status: g.status, pts: g.pts, gift: g.gift, sec: sec, timeout: !!auto && g.status === "skip",
+      recovered: g.status === "ok" && !g.gift && !!prev && prev.last !== "ok" && prev.bad > 0 };
+    res.fb = C.feedbackQuestion(q, res, { prev: prev, tagBefore: tagBefore });
+    s.results[q.id] = res;
+    S.records.push({ id: q.id, ts: Date.now(), chosen: letter, status: g.status, sec: sec });
     if (S.records.length > 5000) S.records = S.records.slice(-5000);
     var w = S.wrong[q.id] || { bad: 0, last: "ok" };
     if (g.status === "ok") w.last = "ok"; else { w.last = g.status; w.bad++; }
@@ -440,6 +562,7 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     $("fbAnswer").textContent = "你的答案：" + (r.chosen || "未作答") + "　正確答案：" + accept.join(" 或 ");
     $("fbExp").innerHTML = q.explanation;
     var n = $("fbNote"); n.hidden = !q.correction_note; n.textContent = q.correction_note || "";
+    renderCoach($("fbCoach"), r.fb || C.feedbackQuestion(q, r, {}), { src: r.sec != null ? "本題作答時間 " + r.sec + " 秒。" : "" });
     $("pActions").hidden = true; $("pFeedback").hidden = false;
     var last = S.session.idx >= S.session.queue.length - 1;
     $("btnNext").textContent = last ? "看本次紀錄" : "下一題";
@@ -473,6 +596,13 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
       return '<details class="wq"><summary>民國 ' + q.year_roc + " 年第 " + q.question_no + " 題　你的答案 " + (r.chosen || "未答") + "，正確答案 " + ((q.accept && q.accept.length) ? q.accept : [q.answer]).join(" 或 ") + '</summary><div class="body"><p>' + q.question + "</p><ol type=\"A\">" + q.options.map(function (t) { return "<li>" + esc(t) + "</li>"; }).join("") + '</ol><div class="exp"><p>' + q.explanation + "</p></div>" + (q.correction_note ? '<p class="note">' + esc(q.correction_note) + "</p>" : "") + "</div></details>";
     }).join("") : (sm.total ? "<p>這一輪全部答對。</p>" : "<p>這一輪尚未送出任何答案。</p>");
     $("copyBox").hidden = true; $("sumMsg").textContent = "";
+    var cf = sessionCoach();
+    $("coachPanel").hidden = !cf;
+    if (cf) renderCoach($("coachBody"), cf, { src: COACH_NOTE, subject: s.subject });
+  }
+  function sessionCoach() {
+    var s = S.session, sm = C.summarize(BYID, s.queue, s.results);
+    return C.feedbackSession({ byId: BYID, queue: s.queue, results: s.results, summary: sm, prior: S.records.filter(function (r) { return r.ts < s.startedAt; }), wrongMap: S.wrong, subject: s.subject });
   }
   function textRecord() {
     var s = S.session, sm = C.summarize(BYID, s.queue, s.results), L = [];
@@ -488,7 +618,150 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
       var q = BYID[id], r = s.results[id];
       L.push("  民國" + q.year_roc + "年第" + q.question_no + "題　" + ({ ok: "答對", bad: "答錯", skip: "未答" })[r.status] + "　你的答案 " + (r.chosen || "—") + "　正確答案 " + q.answer);
     });
+    var cf = sessionCoach();
+    if (cf) {
+      L.push(""); L.push("意見與建議（" + cf.headline + "）：");
+      cf.points.forEach(function (p) { L.push("  【" + KIND[p.kind] + "】" + p.text); });
+    }
     return L.join("\n");
+  }
+
+
+  /* ---------- 申論題 ---------- */
+  function essayState() {
+    if (!S.essay || typeof S.essay !== "object") S.essay = {};
+    if (!S.essay.drafts || typeof S.essay.drafts !== "object") S.essay.drafts = {};
+    if (!Array.isArray(S.essay.attempts)) S.essay.attempts = [];
+    return S.essay;
+  }
+  function fs(x) { return String(Math.round(x * 2) / 2); }
+  function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(function () { saveTimer = null; save(); }, 400); }
+  function hasDraft(id) { var d = essayState().drafts[id]; return !!d && Object.keys(d).some(function (k) { return d[k] && (d[k].graded || (d[k].text || "").trim()); }); }
+
+  function refreshEssayPanel() {
+    var ex = $("selExam").value, sub = $("selSubject").value;
+    var list = ESSAYS.filter(function (e) { return e.exam === ex && e.subject === sub; })
+      .sort(function (a, b) { return b.year_roc - a.year_roc || a.question_no - b.question_no; });
+    var keep = $("selEssay").value;
+    $("essayPanel").hidden = list.length === 0;
+    $("essayErr").hidden = !ESSAY_ERR;
+    if (ESSAY_ERR) $("essayErrMsg").textContent = ESSAY_ERR;
+    fill($("selEssay"), list.map(function (e) {
+      return [e.id, "民國 " + e.year_roc + " 年第 " + e.question_no + " 題（" + e.points + " 分）" + (e.tags && e.tags[0] ? "　" + e.tags.slice(0, 2).join("、") : "") + (hasDraft(e.id) ? "　［有草稿］" : "")];
+    }));
+    if (list.some(function (e) { return e.id === keep; })) $("selEssay").value = keep;
+    var at = essayState().attempts.filter(function (a) { return EBYID[a.id]; }).slice(-8).reverse();
+    $("essayHist").innerHTML = at.length ? '<p class="note" style="margin:12px 0 0">最近的申論題成績：</p><ul class="hist">' + at.map(function (a) {
+      var e = EBYID[a.id];
+      return "<li>" + new Date(a.ts).toLocaleDateString("zh-TW") + "　民國 " + e.year_roc + " 年" + esc(e.subject) + "第 " + e.question_no + " 題　<b>" + fs(a.earned) + " / " + a.possible + "</b> 分" + (a.parts < a.of ? "（評 " + a.parts + "/" + a.of + " 小題）" : "") + "</li>";
+    }).join("") + "</ul>" : "";
+  }
+
+  function partState(pid) {
+    var d = essayState().drafts[curEssay.id] || (essayState().drafts[curEssay.id] = {});
+    return d[pid] || (d[pid] = { text: "", graded: false, auto: {}, scores: {} });
+  }
+  function startEssay() {
+    var id = $("selEssay").value; if (!EBYID[id]) return;
+    curEssay = EBYID[id]; renderEssay(); show("vEssay");
+  }
+  function renderEssay() {
+    var e = curEssay;
+    $("eTitle").textContent = "民國 " + e.year_roc + " 年第 " + e.question_no + " 題（申論題　" + e.points + " 分）";
+    var chips = [e.exam, e.categories && e.categories.length ? "類科：" + e.categories.join("、") : "", e.subject, e.area].concat(e.tags || []);
+    $("eChips").innerHTML = chips.filter(Boolean).map(function (c) { return '<span class="chip">' + esc(c) + "</span>"; }).join("");
+    $("eQ").innerHTML = e.question;
+    var needFig = /繪圖|作圖|圖形|畫出/.test(e.question + e.parts.map(function (p) { return p.question; }).join(""));
+    $("eFig").hidden = !needFig;
+    var box = $("eParts"); box.innerHTML = "";
+    e.parts.forEach(function (p) { box.appendChild(buildPart(p)); });
+    $("eMsg").textContent = "尚未評分的小題以 0 分計。成績只存在你的瀏覽器。";
+    updateEssayTotal();
+  }
+  function buildPart(p) {
+    var st = partState(p.id), div = document.createElement("div");
+    div.className = "panel epart"; div.dataset.pid = p.id;
+    div.innerHTML = "<h2>" + esc(p.label) + ' <span class="note">' + p.points + ' 分</span></h2><p class="qtext">' + p.question + "</p>" +
+      '<textarea class="essay" rows="10" aria-label="' + esc(p.label) + '作答區" placeholder="在這裡寫下你的答案。公式可用文字寫，例如 Q* = (a-c-d)/b、d^2/(2b)。寫出推導過程比只寫結論容易得分。"></textarea>' +
+      '<div class="row" style="margin-top:8px"><button type="button" class="btn primary bGrade">送出本小題並評分</button><button type="button" class="btn bRedo" hidden>重寫本小題</button><span class="note cc"></span></div>' +
+      '<p class="note msg" aria-live="polite" style="margin-bottom:0"></p><div class="eres" hidden></div>';
+    var ta = div.querySelector("textarea"), cc = div.querySelector(".cc"), msg = div.querySelector(".msg");
+    div.querySelector(".bRedo").id = "redo-" + p.id;
+    ta.value = st.text || "";
+    function count() { cc.textContent = ta.value.replace(/\s/g, "").length + " 字"; }
+    count();
+    ta.addEventListener("input", function () { st.text = ta.value; count(); msg.textContent = ""; saveSoon(); });
+    div.querySelector(".bGrade").addEventListener("click", function () {
+      var g = C.gradeEssayPart(p, ta.value);
+      if (g.chars < 10) { msg.textContent = "請先寫下你的答案再送出。"; ta.focus(); return; }
+      st.text = ta.value; st.graded = true; st.auto = {}; st.scores = {};
+      g.items.forEach(function (i) { st.auto[i.id] = i.earned; st.scores[i.id] = i.earned; });
+      save(); showPartResult(div, p); updateEssayTotal();
+      div.querySelector(".eres").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+    div.querySelector(".bRedo").addEventListener("click", function () {
+      twoStep(div.querySelector(".bRedo"), "再按一次確認（會清除這小題的評分）", function () {
+        div.querySelector(".bRedo").textContent = "重寫本小題";
+        st.graded = false; st.auto = {}; st.scores = {}; save();
+        ta.readOnly = false; div.querySelector(".eres").hidden = true; div.querySelector(".bGrade").hidden = false; div.querySelector(".bRedo").hidden = true;
+        updateEssayTotal(); ta.focus();
+      });
+    });
+    if (st.graded) showPartResult(div, p);
+    return div;
+  }
+  function detLabel(r, a) {
+    if (a >= r.points) return '<span class="det-ok">✓ 偵測到</span>';
+    if (a > 0) return '<span class="det-part">△ 部分</span>';
+    return '<span class="det-miss">✗ 未偵測到</span>';
+  }
+  function showPartResult(div, p) {
+    var st = partState(p.id), res = div.querySelector(".eres");
+    div.querySelector("textarea").readOnly = true;
+    div.querySelector(".bGrade").hidden = true; div.querySelector(".bRedo").hidden = false;
+    var rows = p.rubric.map(function (r) {
+      var opts = "";
+      for (var v = 0; v <= r.points + 1e-9; v += 0.5) opts += '<option value="' + v + '"' + (Math.abs(v - (st.scores[r.id] || 0)) < 1e-9 ? " selected" : "") + ">" + fs(v) + "</option>";
+      return "<tr><td>" + esc(r.label) + (r.hint ? '<span class="hint">' + esc(r.hint) + "</span>" : "") + '</td><td class="c">' + detLabel(r, st.auto[r.id] || 0) + '</td><td class="c"><select class="sc" data-rid="' + esc(r.id) + '" aria-label="' + esc(r.label) + ' 你確認的分數">' + opts + '</select></td><td class="c">' + fs(r.points) + "</td></tr>";
+    }).join("");
+    res.innerHTML = '<p class="verdict pv"></p>' +
+      '<table class="weak rub"><thead><tr><th>評分細目</th><th class="c">系統初判</th><th class="c">你確認的分數</th><th class="c">配分</th></tr></thead><tbody>' + rows + "</tbody></table>" +
+      '<div class="coach epc"></div>' + '<p class="note">系統只比對關鍵字與公式寫法：你用不同寫法時可能漏判，只是提到名詞但推導錯誤時也可能誤判。請對照下方參考答案，自行調整「你確認的分數」。</p>' +
+      '<details class="wq" open><summary>參考答案與常見錯誤</summary><div class="body"><div class="exp"><p>' + p.model_answer + "</p></div>" + (p.pitfalls ? '<p class="note">' + esc(p.pitfalls) + "</p>" : "") + '<p class="note">參考答案為編者整理，非考選部公布；閱卷者可能接受其他合理的解法與寫法。</p></div></details>';
+    res.hidden = false;
+    res.querySelectorAll("select.sc").forEach(function (sel) {
+      sel.addEventListener("change", function () { st.scores[sel.dataset.rid] = parseFloat(sel.value) || 0; saveSoon(); updateEssayTotal(); });
+    });
+    updateEssayTotal();
+  }
+  function updateEssayTotal() {
+    var e = curEssay; if (!e) return;
+    var ps = {}, graded = 0;
+    e.parts.forEach(function (p) { var st = partState(p.id); if (st.graded) { ps[p.id] = st.scores; graded++; } });
+    var sm = C.summarizeEssay(e, ps);
+    $("eTotal").textContent = fs(sm.earned);
+    $("eOf").textContent = "／ " + e.points + " 分（已評 " + graded + " / " + e.parts.length + " 小題）";
+    $("btnEssaySave").disabled = graded === 0;
+    document.querySelectorAll("#eParts .epart").forEach(function (div) {
+      var pv = div.querySelector(".pv"); if (!pv) return;
+      var r = sm.parts[div.dataset.pid]; pv.textContent = "本小題得分　" + fs(r.earned) + " / " + r.possible + " 分";
+      var pc = div.querySelector(".epc"), pt = e.parts.filter(function (x) { return x.id === div.dataset.pid; })[0];
+      if (pc && pt) { var f = C.feedbackEssayPart(pt, partState(pt.id)); renderCoach(pc, f.points, {}); var h = document.createElement("p"); h.className = "head"; h.textContent = "針對你這小題答案的意見"; pc.insertBefore(h, pc.firstChild); }
+    });
+    var states = {}; e.parts.forEach(function (p) { var st = partState(p.id); if (st.graded) states[p.id] = st; });
+    var ef = C.feedbackEssay(e, states);
+    $("eFb").hidden = !ef;
+    if (ef) renderCoach($("eFb"), ef, { src: COACH_NOTE, noActions: true });
+  }
+  function saveEssayAttempt() {
+    var e = curEssay, ps = {}, graded = 0;
+    e.parts.forEach(function (p) { var st = partState(p.id); if (st.graded) { ps[p.id] = st.scores; graded++; } });
+    if (!graded) return;
+    var sm = C.summarizeEssay(e, ps), es = essayState();
+    es.attempts.push({ id: e.id, ts: Date.now(), earned: sm.earned, possible: e.points, parts: graded, of: e.parts.length });
+    if (es.attempts.length > 200) es.attempts = es.attempts.slice(-200);
+    delete es.drafts[e.id]; save(); curEssay = null;
+    updatePool(); show("vSetup");
   }
 
   /* ---------- 事件 ---------- */
@@ -499,6 +772,12 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
   ["selYear", "selTag"].forEach(function (id) { $(id).addEventListener("change", updatePool); });
   $("modes").addEventListener("change", function () { $("fTag").hidden = curMode() !== "tag"; updatePool(); });
   $("btnStart").addEventListener("click", startSession);
+  $("btnEssayStart").addEventListener("click", startEssay);
+  $("btnEssayBack").addEventListener("click", function () { clearTimeout(saveTimer); saveTimer = null; save(); curEssay = null; updatePool(); show("vSetup"); });
+  $("btnEssaySave").addEventListener("click", saveEssayAttempt);
+  $("btnEssayDrop").addEventListener("click", function () {
+    twoStep($("btnEssayDrop"), "再按一次確認清除", function () { $("btnEssayDrop").textContent = "清除本題草稿"; delete essayState().drafts[curEssay.id]; save(); renderEssay(); });
+  });
   $("btnResume").addEventListener("click", function () { showQuestion(); var s = S.session, id = s.queue[s.idx], r = s.results[id]; if (r) { stopTimer(); renderFeedback(BYID[id], r, false); } });
   $("pOpts").addEventListener("click", function (e) {
     var b = e.target.closest(".opt"); if (!b || b.disabled) return;
@@ -523,10 +802,10 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, fallback); else fallback();
   });
   $("btnClear").addEventListener("click", function () {
-    twoStep($("btnClear"), "再按一次確認清除", function () { S = { records: [], wrong: {}, session: null }; save(); updatePool(); renderCoverStat(); show("vSetup"); });
+    twoStep($("btnClear"), "再按一次確認清除", function () { S = { records: [], wrong: {}, session: null, essay: { drafts: {}, attempts: [] } }; save(); updatePool(); renderCoverStat(); show("vSetup"); });
   });
   $("btnExport").addEventListener("click", function () {
-    var data = JSON.stringify({ app: "cute-mgmt-moex", version: 1, exported: new Date().toISOString(), records: S.records, wrong: S.wrong }, null, 1);
+    var data = JSON.stringify({ app: "cute-mgmt-moex", version: 2, exported: new Date().toISOString(), records: S.records, wrong: S.wrong, essay: essayState() }, null, 1);
     try {
       var a = document.createElement("a");
       a.href = URL.createObjectURL(new Blob([data], { type: "application/json" }));
@@ -542,13 +821,17 @@ textarea.copy { width: 100%; min-height: 160px; border: 1.5px solid var(--ink-2)
       try {
         var d = JSON.parse(fr.result);
         if (!d || d.app !== "cute-mgmt-moex" || !Array.isArray(d.records) || typeof d.wrong !== "object") throw new Error("格式不符");
-        S.records = d.records.slice(-5000); S.wrong = d.wrong; S.session = null; save(); updatePool(); renderCoverStat();
+        S.records = d.records.slice(-5000); S.wrong = d.wrong; S.session = null; S.essay = d.essay && typeof d.essay === "object" ? d.essay : {}; essayState(); save(); updatePool(); renderCoverStat();
         $("backupMsg").textContent = "已匯入 " + d.records.length + " 筆作答紀錄。";
       } catch (err) { $("backupMsg").textContent = "匯入失敗：這不是本系統的備份檔。"; }
       e.target.value = "";
     };
     fr.readAsText(f);
   });
+
+  function flushSave() { if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; save(); } }
+  window.addEventListener("pagehide", flushSave);
+  document.addEventListener("visibilitychange", function () { if (document.visibilityState === "hidden") flushSave(); });
 
   boot();
 })();
